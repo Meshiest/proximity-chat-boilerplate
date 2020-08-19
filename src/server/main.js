@@ -1,10 +1,14 @@
 const fs = require('fs');
+const path = require('path');
 
 const https = require('https');
 const express = require('express');
 const { ExpressPeerServer } = require('peer');
-
 const { v4: uuidv4 } = require('uuid');
+
+const throttle = require('../util/throttle.js');
+const { GAME_SIZE } = require('../constants.js');
+const GAME_RADIUS = GAME_SIZE / 2;
 
 // setup ssl
 const SSL_CONFIG = {
@@ -20,70 +24,65 @@ const peerServer = ExpressPeerServer(server, {debug: true});
 
 // use peerjs with express
 app.use('/peerjs', peerServer);
-app.use(express.static('.'));
+app.use('/public', express.static(path.join(__dirname, '/../../public')));
 
 // send index file
 app.get('/', (req, res) => {
-  res.sendFile(__dirname + '/public/index.html');
+  res.sendFile(path.join(__dirname, '/../../public/index.html'));
 });
-
-const throttle = (func, limit) => {
-  let lastFunc
-  let lastRan
-  return function() {
-    const context = this
-    const args = arguments
-    if (!lastRan) {
-      func.apply(context, args)
-      lastRan = Date.now()
-    } else {
-      clearTimeout(lastFunc)
-      lastFunc = setTimeout(function() {
-        if ((Date.now() - lastRan) >= limit) {
-          func.apply(context, args)
-          lastRan = Date.now()
-        }
-      }, limit - (Date.now() - lastRan))
-    }
-  }
-}
 
 // track which users are connected
 const users = [];
+
+const userInfo = u => ({pos: u.pos, avatar: u.avatar, name: u.name});
+
+const emitPos = throttle((x, y) => {
+  io.emit('pos', users.map(u => [u.id, u.pos]));
+}, 25);
 
 // handle socket connection
 io.on('connection', socket => {
   const id = uuidv4();
   const pos = {x: 0, y: 0};
-  users.push({ id, socket, pos });
+  const user = { id, socket, pos, avatar: 0, name: '' };
+  users.push(user);
   console.log('user connected', id);
 
   // tell user his or her id
   socket.emit('id', id);
 
-  // tell the other users to connect to this user
-  socket.broadcast.emit('join', id, pos);
+  // tell this user about other users
   socket.emit('players', users
     .filter(u => u.id !== id)
-    .map(u => ({id: u.id, pos: u.pos}))
+    .map(u => [u.id, userInfo(u)])
   );
 
-  const emitPos = throttle((x, y) => {
-    socket.broadcast.emit('pos', id, {x, y});
-  }, 25);
+  // tell the other users to connect to this user
+  socket.broadcast.emit('join', id, userInfo(user));
+
+  // handle name changes
+  socket.on('name', name => {
+    if (typeof name !== 'string' || !name.match(/^[a-z_\d-]{0,10}$/i)) {
+      return;
+    }
+
+    user.name = name;
+    console.log('name is', name);
+    io.emit('name', id, name);
+  });
 
   socket.on('pos', (x, y) => {
     // ignore non-number input
     if (typeof x !== 'number' || typeof y !== 'number') return;
 
     // clamp pos
-    x = Math.max(Math.min(200, x), -200);
-    y = Math.max(Math.min(200, y), -200);
+    x = Math.max(Math.min(GAME_RADIUS, x), -GAME_RADIUS);
+    y = Math.max(Math.min(GAME_RADIUS, y), -GAME_RADIUS);
     pos.x = x;
     pos.y = y;
 
     // emit the position, throttled
-    emitPos(x, y);
+    emitPos();
   });
 
   // user disconnected
@@ -105,6 +104,12 @@ peerServer.on('connection', peer => {
 });
 
 peerServer.on('disconnect', peer => {
+  // disconnect the player if their peer leaves
+  const player = users.find(p => p.id === peer.id);
+  if (player) {
+    player.socket.disconnect();
+  }
+
   console.log('peer disconnected', peer.id);
 });
 

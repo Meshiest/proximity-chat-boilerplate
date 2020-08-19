@@ -1,0 +1,6 @@
+module.exports = {
+  GAME_SIZE: 400,
+  SOUND_CUTOFF_RANGE: 95,
+  SOUND_FAR_RANGE: 70,
+  SOUND_NEAR_RANGE: 30,
+};

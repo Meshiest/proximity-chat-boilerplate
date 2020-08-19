@@ -4,15 +4,27 @@
   "description": "A demo of a proximity voice chatroom using peerjs",
   "main": "main.js",
   "scripts": {
-    "start": "node main.js"
+    "start": "node src/server/main.js",
+    "build": "npx webpack",
+    "watch": "npx webpack -w",
+    "dist": "npx webpack -p"
   },
   "author": "Meshiest",
   "license": "CC0 1.0 Universal",
   "dependencies": {
+    "@babel/core": "^7.11.1",
+    "@babel/preset-env": "^7.11.0",
+    "babel-loader": "^8.1.0",
+    "copy-webpack-plugin": "^6.0.3",
+    "css-loader": "^4.2.1",
     "express": "^4.17.1",
+    "file-loader": "^6.0.0",
     "peer": "^0.5.3",
     "socket.io": "^2.3.0",
     "three": "^0.119.1",
-    "uuid": "^8.3.0"
+    "url-loader": "^4.1.0",
+    "uuid": "^8.3.0",
+    "webpack": "^4.44.1",
+    "webpack-cli": "^3.3.12"
   }
 }
