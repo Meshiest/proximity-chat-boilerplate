@@ -162,10 +162,6 @@ let client;
 
 // setup peer when user receives id
 socket.on('id', async id => {
-  if (localStorage.proximityName) {
-    socket.emit('name', localStorage.proximityName);
-    localStorage.proximityName = '';
-  }
 
   // destroy the client if it already exists
   if (client) {
@@ -187,6 +183,14 @@ socket.on('id', async id => {
     log('created stream for', peer.id);
   };
 
+  // submit client name when peer server connects
+  client.onConnect = () => {
+    client.connected = true;
+    if (localStorage.proximityName) {
+      socket.emit('name', localStorage.proximityName);
+      localStorage.proximityName = '';
+    }
+  }
   // run when peer is destroyed
   client.onPeerDestroy = peer => {
     const elem = $(`[data-peer="${peer.id}"]`);
@@ -216,6 +220,7 @@ socket.on('join', (id, info) => {
 // add existing players
 socket.on('players', players => {
   for (const [id, info] of players) {
+    if (id == client.id) continue;
     const peer = client.addPeer(id, info);
     peer.info.goal = {...info.pos};
   }

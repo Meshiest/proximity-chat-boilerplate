@@ -16,7 +16,7 @@ export default class Client {
   // setup the peer and listeners
   init() {
     this.peer = new Peer(this.id, {host: location.hostname, port: location.port, path: '/peerjs'});
-    this.peer.on('open', this.onConnect.bind(this));
+    this.peer.on('open', () => this.onConnect());
     this.peer.on('disconnected', this.onDisconnect.bind(this));
     this.peer.on('close', this.onDisconnect.bind(this));
     this.peer.on('error', this.onError.bind(this));
