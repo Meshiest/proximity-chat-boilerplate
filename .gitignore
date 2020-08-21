@@ -3,4 +3,4 @@ package-lock.json
 cert.pem
 key.pem
 csr.pem
-public
+public/*
