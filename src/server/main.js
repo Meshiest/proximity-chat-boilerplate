@@ -6,7 +6,7 @@ const express = require('express');
 const { ExpressPeerServer } = require('peer');
 
 const throttle = require('../util/throttle.js');
-const { GAME_SIZE } = require('../constants.js');
+const { GAME_SIZE, AVATARS } = require('../constants.js');
 
 const Server = require('./network/server.js');
 
@@ -58,8 +58,17 @@ server.on('connect', client => {
 
     client.info.name = name;
     console.log(client.id, 'name is', name);
-    io.emit('name', client.id, name);
+    io.emit('info', client.id, { name });
   });
+
+  // handle avatar changes
+  client.socket.on('avatar', avatar => {
+    if (typeof avatar !== 'number' || avatar < 0 || avatar >= AVATARS.length)
+      return;
+    avatar = Math.floor(avatar);
+    client.info.avatar = avatar;
+    io.emit('info', client.id, { avatar });
+  })
 
   client.socket.on('pos', (x, y) => {
     // ignore non-number input

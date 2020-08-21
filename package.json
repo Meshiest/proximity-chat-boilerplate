@@ -1,7 +1,7 @@
 {
-  "name": "peer-proxmity-voice-demo",
-  "version": "2.0.0",
-  "description": "A demo of a proximity voice chatroom using peerjs",
+  "name": "proxmity-boilerplate",
+  "version": "2.1.0",
+  "description": "Boilerplate code for multiplayer proximity voice games",
   "main": "main.js",
   "scripts": {
     "start": "node src/server/main.js",

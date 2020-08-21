@@ -3,15 +3,14 @@ const log = (...args) => logs.innerText += args.join(' ') + '\n';
 
 const socket = io();
 
-import { GAME_SIZE } from '../constants.js';
+import { GAME_SIZE, AVATARS } from '../constants.js';
 import throttle from '../util/throttle.js';
 import { getVolume2D, SpatialStream } from './audio/spatial-audio.js';
 import { playAudioStream, getAudioStream } from './audio/audio.js';
 import Client from './network/client.js';
 import initCanvas from './canvas/canvas.js';
 
-let myName = '';
-const myPos = {x: 0, y: 0};
+const myInfo = {pos: {x: 0, y: 0}, name: '', avatar: 0}
 const lastPos = {x: 0, y: 0};
 const cursor = {down: false, x: 0, y: 0};
 const players = [];
@@ -29,6 +28,12 @@ $('#nameForm').addEventListener('submit', e => {
     socket.emit('name', name);
     e.target.name.value = '';
   }
+});
+
+$('#avatarForm').addEventListener('submit', e => {
+  e.preventDefault();
+  const avatar = Number(e.target.avatar.value);
+  socket.emit('avatar', avatar);
 });
 
 $('#canvas').addEventListener('mousedown', e => {
@@ -69,10 +74,10 @@ $('#canvas').addEventListener('touchcancel', mouseUpEvent);
 // emit my position, throttled
 const sendPos = throttle((x, y) => socket.emit('pos', x, y), 25);
 function emitPos() {
-  if (lastPos.x !== myPos.x && lastPos.y !== myPos.y) {
-    sendPos(myPos.x, myPos.y);
-    lastPos.x = myPos.x;
-    lastPos.y = myPos.y;
+  if (lastPos.x !== myInfo.pos.x && lastPos.y !== myInfo.pos.y) {
+    sendPos(myInfo.pos.x, myInfo.pos.y);
+    lastPos.x = myInfo.pos.x;
+    lastPos.y = myInfo.pos.y;
   }
 }
 
@@ -80,17 +85,17 @@ function emitPos() {
 initCanvas().then(render => render((ctx, {sheet, delta, now}) => {
 
   // where player should try to move to (cursor if mouse/touch is down)
-  const goalX = !cursor.down ? myPos.x : (cursor.x - GAME_SIZE/2);
-  const goalY = !cursor.down ? myPos.y : (cursor.y - GAME_SIZE/2);
+  const goalX = !cursor.down ? myInfo.pos.x : (cursor.x - GAME_SIZE/2);
+  const goalY = !cursor.down ? myInfo.pos.y : (cursor.y - GAME_SIZE/2);
 
   // move player towards cursor
-  if (Math.hypot(goalX - myPos.x, goalY - myPos.y) > 1) {
-    const theta = Math.atan2(goalY - myPos.y, goalX - myPos.x);
-    myPos.x += Math.cos(theta) * 128 * delta;
-    myPos.y += Math.sin(theta) * 128 * delta;
+  if (Math.hypot(goalX - myInfo.pos.x, goalY - myInfo.pos.y) > 1) {
+    const theta = Math.atan2(goalY - myInfo.pos.y, goalX - myInfo.pos.x);
+    myInfo.pos.x += Math.cos(theta) * 128 * delta;
+    myInfo.pos.y += Math.sin(theta) * 128 * delta;
   } else {
-    myPos.x = Math.round(myPos.x);
-    myPos.y = Math.round(myPos.y);
+    myInfo.pos.x = Math.round(myInfo.pos.x);
+    myInfo.pos.y = Math.round(myInfo.pos.y);
   }
 
   // update position with server
@@ -103,8 +108,8 @@ initCanvas().then(render => render((ctx, {sheet, delta, now}) => {
   ctx.textBaseline = 'bottom';
 
   // render my player
-  sheet(25, 0)(ctx, {x: myPos.x, y: myPos.y});
-  ctx.fillText(myName, myPos.x, myPos.y + 20);
+  sheet(...AVATARS[myInfo.avatar])(ctx, {x: myInfo.pos.x, y: myInfo.pos.y});
+  ctx.fillText(myInfo.name, myInfo.pos.x, myInfo.pos.y + 20);
 
   // render cursor
   if (cursor.down)
@@ -117,14 +122,14 @@ initCanvas().then(render => render((ctx, {sheet, delta, now}) => {
 
   // render other players
   for (const p of client.peers) {
-    const { goal, pos, name } = p.info;
+    const { goal, pos, avatar, name } = p.info;
 
     // smoothly interpolate player position towards the goal position
     pos.x += (goal.x - pos.x) * 5 * delta;
     pos.y += (goal.y - pos.y) * 5 * delta;
 
     // render the player
-    sheet(25, 0)(ctx, {
+    sheet(...AVATARS[avatar])(ctx, {
       x: pos.x,
       y: pos.y,
     });
@@ -139,7 +144,7 @@ initCanvas().then(render => render((ctx, {sheet, delta, now}) => {
 
     if (p.isConnected() && p.info.stream) {
       // set spatial stream audio
-      const [left, right] = getVolume2D(myPos, pos);
+      const [left, right] = getVolume2D(myInfo.pos, pos);
       p.info.stream.setVolume(left, right);
 
       // render the volumes per for both channels
@@ -188,7 +193,9 @@ socket.on('id', async id => {
     client.connected = true;
     if (localStorage.proximityName) {
       socket.emit('name', localStorage.proximityName);
-      localStorage.proximityName = '';
+    }
+    if (localStorage.proximityAvatar) {
+      socket.emit('avatar', Number(localStorage.proximityAvatar));
     }
   }
   // run when peer is destroyed
@@ -235,16 +242,17 @@ socket.on('pos', arr => {
   }
 });
 
-// set player name
-socket.on('name', (id, name) => {
+// set player info
+socket.on('info', (id, info) => {
   if (id === client.id) {
-    myName = name;
-    localStorage.proximityName = name;
+    Object.assign(myInfo, info);
+    localStorage.proximityName = myInfo.name;
+    localStorage.proximityAvatar = myInfo.avatar;
     return;
   }
 
   const peer = client.getPeer(id);
-  peer.info.name = name;
+  Object.assign(peer.info, info);
 });
 
 socket.on('leave', id => {
